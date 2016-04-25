@@ -172,6 +172,24 @@ module.exports = exports = function(app, socketCallback) {
             }
         });
 
+        socket.on('new-client-connected', function(coordConnName) {
+            socket.broadcast.emit('new-coordinator', coordConnName);
+        });
+
+        socket.on('check-presence', function(userid, callback) {
+            if (userid === socket.userid && !!listOfUsers[userid]) {
+                callback(false, socket.userid, listOfUsers[userid].extra);
+                return;
+            }
+
+            var extra = {};
+            if (listOfUsers[userid]) {
+                extra = listOfUsers[userid].extra;
+            }
+
+            callback(!!listOfUsers[userid], userid, extra);
+        });
+
         function onMessageCallback(message) {
             try {
                 if (!listOfUsers[message.sender]) {
@@ -242,18 +260,6 @@ module.exports = exports = function(app, socketCallback) {
                     }
                     shiftedModerationControls[message.sender] = message;
                     return;
-                }
-
-                if (message.remoteUserId == 'system') {
-                    if (message.message.detectPresence) {
-                        if (message.message.userid === socket.userid) {
-                            callback(false, socket.userid);
-                            return;
-                        }
-
-                        callback(!!listOfUsers[message.message.userid], message.message.userid);
-                        return;
-                    }
                 }
 
                 if (!listOfUsers[message.sender]) {
