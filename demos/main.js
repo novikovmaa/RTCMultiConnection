@@ -131,6 +131,7 @@ function createWindow () {
       }
     });
 
+    // demio_coordinate connect multiple times
 
     // mainWindow = new BrowserWindow({width: 800, height: 600, title: "Demio Broadcast"});
     // // and load the index.html of the app.
