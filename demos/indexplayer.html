@@ -1,90 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <meta charset="utf-8">
-
-    <style>
-        html, body {
-            height: 100%;
-            margin: 0;
-        }
-        button,
-        input,
-        select {
-            font-weight: normal;
-            padding: 2px 4px;
-            text-decoration: none;
-            display: inline-block;
-            text-shadow: none;
-            font-size: 16px;
-            outline: none;
-        }
-
-        .make-center {
-            text-align: center;
-            padding: 5px 10px;
-        }
-
-        .container
-        {
-            text-align: center;
-            padding: 1rem;
-            box-sizing: border-box;
-            height: 100%;
-        }
-
-        .container video
-        {
-            width: 80%;
-            max-height: 100%;
-            height: auto;
-        }
-        #video-previewWebCam {
-            position: absolute;
-            display: none;
-            top: 1rem;
-            right: 1rem;
-            width: 10px;
-            height: 10px;
-        }
-        .audio-preview {
-            position: absolute;
-            display: none;
-            bottom: 1rem;
-            left: 1rem;
-            width: 1px;
-            height: 1px;
-        }
-        #audio-player {
-            display: none;
-        }
-        audio {
-            display: none;
-        }
-    </style>
-
+    <link rel="stylesheet" type="text/css" href="public/css/styles.css">
 </head>
-
 <body>
-
     <div class="container">
-        <video id="video-preview"  loop></video>
-        <video id="video-previewWebCam"  loop muted></video>
-        <video id="audio-player"  loop></video>
+        <video id="screen-view" loop></video>
+        <video id="webcam-view" loop muted></video>
+        <video id="coordinator-audio" loop></video>
     </div>
     <script src="https://rtcmulticonnection.herokuapp.com/socket.io/socket.io.js"></script>
-
+    <script src="public/js/rmc3.js"></script>
+    <script src="public/js/const.js"></script>
     <script>
         window.getExternalIceServers = false;
-    </script>
 
-    <script src="rmc3.js"></script>
-
-    <script>
-
-        var serverIp = '163.172.27.226';
+        var serverIp = PRODUCTION_SERVER_IP;
         // If client is coordinator
         var coordinatorConnection = null;
         // Main conection screensharing
@@ -96,7 +29,7 @@
         const dialog = require('electron').remote.dialog;
         var devServerIp = remote.getGlobal('sharedObj').serverIp;
         var coordConnName = remote.getGlobal('sharedObj').coordConnectionName;
-        if (devServerIp !== '' && devServerIp !== "163.172.27.226") {
+        if (devServerIp !== '' && devServerIp !== PRODUCTION_SERVER_IP) {
             serverIp = devServerIp;
             dialog.showMessageBox({type: 'info', message: "USING CUSTOM SERVER. SERVER IP:"+devServerIp, title: 'Demio', buttons: ['Ok']});
         }
@@ -106,15 +39,15 @@
         var openedCoordinatorsNames = [];
         var openedcoordinators = [];
 
-        var audioPreviewCoord = document.getElementById('audio-player');
-        var videoPreview = document.getElementById('video-preview');
-        var videoPreviewWebCam = document.getElementById('video-previewWebCam');
+        var coordinatorAudio = document.getElementById('coordinator-audio');
+        var screenView = document.getElementById('screen-view');
+        var webcamView = document.getElementById('webcam-view');
 
-        var broadcastSources = {
-            "demiotest": videoPreview,
-            "demiotestA": videoPreviewWebCam,
-            "coordinator": audioPreviewCoord
-        };
+        var broadcastSources = {};
+
+        broadcastSources[SCREEN_CONNECTION_NAME] = screenView;
+        broadcastSources[WEBCAM_CONNECTION_NAME] = webcamView;
+        broadcastSources[COORDINATOR_CONNECTION_NAME] = coordinatorAudio;
 
         var splittedCoordName = coordConnName.split('_');
         var ignoreCoordNumber = parseInt(splittedCoordName[splittedCoordName.length-1]);
@@ -123,7 +56,7 @@
         function buildCoordList() {
             for (i=1; i<=10; i++) {
                 if ( i !== ignoreCoordNumber ) {
-                    openedCoordinatorsNames.push("demio_coordinator_"+i);
+                    openedCoordinatorsNames.push(COORDINATOR_NAME_SUFFIX+i);
                 }
             }
         }
@@ -155,7 +88,7 @@
 
             var socket = currentConnection.getSocket();
 
-            socket.emit('check-broadcast-presence', broadcastId, function(isBroadcastExists) {
+            socket.emit(CHECK_BROADCAST_PRESENCE_EVENT, broadcastId, function(isBroadcastExists) {
                 if (start) {
                     if(!isBroadcastExists) {
                         // the first person (i.e. real-broadcaster) MUST set his user-id
@@ -168,14 +101,14 @@
                 }
 
                 if (!start) {
-                    if(!isBroadcastExists) {
+                    if(!isBroadcastExists && withScreen) {
+                        dialog.showMessageBox({type: 'info', message: 'Broadcast not running', title: 'Demio', buttons: ['Ok']});
                         return;
                     }
                 }
 
-                console.log('check-broadcast-presence', broadcastId, isBroadcastExists);
-
-                socket.emit('join-broadcast', {
+                console.log(CHECK_BROADCAST_PRESENCE_EVENT, broadcastId, isBroadcastExists);
+                socket.emit(JOIN_BROADCAST_EVENT, {
                     broadcastId: broadcastId,
                     userid: currentConnection.userid,
                     typeOfStreams: currentConnection.session
@@ -188,14 +121,14 @@
         var onleaveEvent = function(event) {
             var broadcastSrc = broadcastSources[event.userid];
 
-            if (event.extra['stream_name'] == 'coordinator') {
+            if (event.extra['stream_name'] == COORDINATOR_CONNECTION_NAME) {
                 broadcastSrc = broadcastSources[event.extra['stream_name']];
             }
 
             if(event.userid !== broadcastSrc.userid) return;
 
             var socket = this.getSocket();
-            socket.emit('can-not-relay-broadcast');
+            socket.emit(CAN_NOT_RELAY_BROADCAST_EVENT);
 
             this.isUpperUserLeft = true;
 
@@ -215,7 +148,7 @@
 
             var broadcastSrc = broadcastSources[event.userid];
 
-            if (event.extra['stream_name'] == 'coordinator') {
+            if (event.extra['stream_name'] == COORDINATOR_CONNECTION_NAME) {
                 broadcastSrc = broadcastSources[event.extra['stream_name']];
             }
 
@@ -237,7 +170,7 @@
                 };
 
                 var socket = this.getSocket();
-                socket.emit('can-relay-broadcast');
+                socket.emit(CAN_RELAY_BROADCAST_EVENT);
 
                 if(this.DetectRTC.browser.name === 'Chrome') {
                     this.getAllParticipants().forEach(function(p) {
@@ -265,21 +198,19 @@
                         }
                     });
                 }
-
             }
         };
-
 
         // Connect to socket common function
         var connectToSocket = function(currentConnection, isScreen) {
             currentConnection.connectSocket(function(socket) {
-                socket.on('logs', function(log) {
+                socket.on(LOGS_EVENT, function(log) {
                     console.log(log);
                 });
 
                 // this event is emitted when a broadcast is already created.
-                socket.on('join-broadcaster', function(hintsToJoinBroadcast) {
-                    console.log('join-broadcaster', hintsToJoinBroadcast);
+                socket.on(JOIN_BROADCASTER_EVENT, function(hintsToJoinBroadcast) {
+                    console.log(JOIN_BROADCASTER_EVENT, hintsToJoinBroadcast);
 
                     currentConnection.session = hintsToJoinBroadcast.typeOfStreams;
                     currentConnection.sdpConstraints.mandatory = {
@@ -289,16 +220,16 @@
                     currentConnection.join(hintsToJoinBroadcast.userid);
                 });
 
-                socket.on('rejoin-broadcast', function(broadcastId) {
-                    console.log('rejoin-broadcast', broadcastId);
+                socket.on(REJOIN_BROADCAST_EVENT, function(broadcastId) {
+                    console.log(REJOIN_BROADCAST_EVENT, broadcastId);
 
                     currentConnection.attachStreams = [];
-                    socket.emit('check-broadcast-presence', broadcastId, function(isBroadcastExists) {
+                    socket.emit(CHECK_BROADCAST_PRESENCE_EVENT, broadcastId, function(isBroadcastExists) {
                         if(!isBroadcastExists) {
                             currentConnection.userid = broadcastId;
                         }
 
-                        socket.emit('join-broadcast', {
+                        socket.emit(JOIN_BROADCAST_EVENT, {
                             broadcastId: broadcastId,
                             userid: currentConnection.userid,
                             typeOfStreams: currentConnection.session
@@ -306,15 +237,15 @@
                     });
                 });
 
-                socket.on('broadcast-stopped', function(broadcastId) {
-                    console.error('broadcast-stopped', broadcastId);
+                socket.on(BROADCAST_STOPPED_EVENT, function(broadcastId) {
+                    console.error(BROADCAST_STOPPED_EVENT, broadcastId);
                     if (isScreen) {
                         dialog.showMessageBox({type: 'info', message: 'This broadcast has been stopped', title: 'Demio', buttons: ['Ok']});
                     }
                 });
 
-                socket.on('start-broadcasting', function(typeOfStreams) {
-                    console.log('start-broadcasting', typeOfStreams);
+                socket.on(START_BROADCASTING_EVENT, function(typeOfStreams) {
+                    console.log(START_BROADCASTING_EVENT, typeOfStreams);
 
                     currentConnection.sdpConstraints.mandatory = {
                         OfferToReceiveVideo: false,
@@ -368,7 +299,6 @@
             return peerCount;
         }
 
-
         function setupConnection() {
             var connection = new RTCMultiConnection(null, {
                 useDefaultDevices: true // if we don't need to force selection of specific devices
@@ -381,8 +311,8 @@
             var iceServers = [];
             iceServers.push({
                 url: 'turn:'+serverIp+':3478',
-                username: 'demio',
-                credential: 'demiotest'
+                username: TURN_USERNAME,
+                credential: TURN_CREDENTIAL
             });
             connection.iceServers = iceServers;
 
@@ -404,12 +334,9 @@
                 return sdp;
             };
 
-            connection.socketMessageEvent = 'scalable-screen-broadcast-demo';
+            connection.socketMessageEvent = SOCKET_MESSAGE_EVENT;
             return connection;
         }
-
-
-
 
         if (coordConnName !== '') {
             coordinatorConnection = setupConnection();
@@ -417,14 +344,10 @@
 
             coordinatorConnection.onstream = onstreamEvent;
             coordinatorConnection.onleave = onleaveEvent;
-            coordinatorConnection.extra['stream_name'] = 'coordinator';
+            coordinatorConnection.extra['stream_name'] = COORDINATOR_CONNECTION_NAME;
             // joinOrOpenBroadcast function(currentConnection, withAudio, withVideo, withScreen, bcastId, start?)
             joinOrOpenBroadcast(coordinatorConnection, true, false, false, coordConnName, true);
         }
-
-        var audioPreviewCoord = document.getElementById('audio-player');
-        var videoPreview = document.getElementById('video-preview');
-        var videoPreviewWebCam = document.getElementById('video-previewWebCam');
 
         // Setup main connection
         connection = setupConnection();
@@ -432,7 +355,7 @@
         mainWindow.setTitle("Demio Player | Speed: "+speed+" | Peers: "+connection.maxRelayLimitPerUser);
         connection = connectToSocket(connection, true);
         // only this socket must be able to use this event
-        connection.getSocket().on('new-coordinator', function(coordinatorName) {
+        connection.getSocket().on(NEW_COORDINATOR_EVENT, function(coordinatorName) {
                 console.log("New coordinator: "+coordinatorName);
                 newCoordinator = setupConnection();
                 newCoordinator = connectToSocket(newCoordinator, false);
@@ -441,37 +364,30 @@
                 coordinators.push(newCoordinator);
         });
         if (coordConnName !== '') {
-            connection.getSocket().emit('new-client-connected', coordConnName);
+            connection.getSocket().emit(NEW_CLIENT_CONNECTED_EVENT, coordConnName);
         }
         connection.onstream = onstreamEvent;
         connection.onleave = onleaveEvent;
-        connection.extra['stream_name'] = 'demiotest';
-
-
+        connection.extra['stream_name'] = SCREEN_CONNECTION_NAME;
         // Setup webcam connection
         webCamConnection = setupConnection();
         webCamConnection = connectToSocket(webCamConnection, false);
-        webCamConnection.getSocket().on('mute-webcam', function() {
-           document.getElementById('video-previewWebCam').style.display = 'none';
+        webCamConnection.getSocket().on(MUTE_WEBCAM_EVENT, function() {
+           document.getElementById('webcam-view').style.display = 'none';
         });
-        webCamConnection.getSocket().on('unmute-webcam', function() {
-           document.getElementById('video-previewWebCam').style.display = 'block';
+        webCamConnection.getSocket().on(UNMUTE_WEBCAM_EVENT, function() {
+           document.getElementById('webcam-view').style.display = 'block';
         });
         webCamConnection.onstream = onstreamEvent;
         webCamConnection.onleave = onleaveEvent;
-        webCamConnection.extra['stream_name'] = 'demiotestA';
+        webCamConnection.extra['stream_name'] = WEBCAM_CONNECTION_NAME;
 
-
-        joinOrOpenBroadcast(connection, false, false, true, 'demiotest', false);
-        joinOrOpenBroadcast(webCamConnection, false, true, false, 'demiotestA', false);
-
+        joinOrOpenBroadcast(connection, false, false, true, SCREEN_CONNECTION_NAME, false);
+        joinOrOpenBroadcast(webCamConnection, false, true, false, WEBCAM_CONNECTION_NAME, false);
 
         findCoordinators(function() {
             checkBroadcasts();
         });
-
         </script>
-
 </body>
-
 </html>
