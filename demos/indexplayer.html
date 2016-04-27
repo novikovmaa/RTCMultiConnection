@@ -186,7 +186,13 @@
         var preview = null;
 
         var onleaveEvent = function(event) {
-            if(event.userid !== broadcastSources[event.extra['stream_name']].userid) return;
+            var broadcastSrc = broadcastSources[event.userid];
+
+            if (event.extra['stream_name'] == 'coordinator') {
+                broadcastSrc = broadcastSources[event.extra['stream_name']];
+            }
+
+            if(event.userid !== broadcastSrc.userid) return;
 
             var socket = this.getSocket();
             socket.emit('can-not-relay-broadcast');
@@ -206,13 +212,20 @@
             }
 
             this.isUpperUserLeft = false;
-            broadcastSources[event.userid].src = URL.createObjectURL(event.stream);
-            broadcastSources[event.userid].play();
 
-            broadcastSources[event.userid].userid = event.userid;
+            var broadcastSrc = broadcastSources[event.userid];
+
+            if (event.extra['stream_name'] == 'coordinator') {
+                broadcastSrc = broadcastSources[event.extra['stream_name']];
+            }
+
+            broadcastSrc.src = URL.createObjectURL(event.stream);
+            broadcastSrc.play();
+
+            broadcastSrc.userid = event.userid;
 
             if(event.type === 'local') {
-                broadcastSources[event.userid].muted = true;
+                broadcastSrc.muted = true;
             }
 
             if (this.isInitiator == false && event.type === 'remote') {
@@ -439,10 +452,10 @@
         webCamConnection = setupConnection();
         webCamConnection = connectToSocket(webCamConnection, false);
         webCamConnection.getSocket().on('mute-webcam', function() {
-           document.getElementById('video-previewWebCam').style.display = 'none'; 
+           document.getElementById('video-previewWebCam').style.display = 'none';
         });
         webCamConnection.getSocket().on('unmute-webcam', function() {
-           document.getElementById('video-previewWebCam').style.display = 'block'; 
+           document.getElementById('video-previewWebCam').style.display = 'block';
         });
         webCamConnection.onstream = onstreamEvent;
         webCamConnection.onleave = onleaveEvent;
