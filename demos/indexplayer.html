@@ -6,6 +6,12 @@
     <link rel="stylesheet" type="text/css" href="public/css/styles.css">
 </head>
 <body>
+    <div id="wait-screen">
+        <div class="wrapper">
+            <img src="public/img/loading.gif">
+            <h1>Waiting for a presenter...</h1>
+        </div>
+    </div>
     <div class="container">
         <video id="screen-view" loop></video>
         <video id="webcam-view" loop muted></video>
@@ -99,10 +105,11 @@
                         return;
                     }
                 }
-
                 if (!start) {
-                    if(!isBroadcastExists && withScreen) {
-                        dialog.showMessageBox({type: 'info', message: 'Broadcast not running', title: 'Demio', buttons: ['Ok']});
+                    if(!isBroadcastExists) {
+                        if (withScreen) {
+                            dialog.showMessageBox({type: 'info', message: 'Broadcast not running', title: 'Demio', buttons: ['Ok']});
+                        }
                         return;
                     }
                 }
@@ -382,12 +389,42 @@
         webCamConnection.onleave = onleaveEvent;
         webCamConnection.extra['stream_name'] = WEBCAM_CONNECTION_NAME;
 
-        joinOrOpenBroadcast(connection, false, false, true, SCREEN_CONNECTION_NAME, false);
-        joinOrOpenBroadcast(webCamConnection, false, true, false, WEBCAM_CONNECTION_NAME, false);
 
-        findCoordinators(function() {
-            checkBroadcasts();
+
+        connection.getSocket().emit(CHECK_BROADCAST_PRESENCE_EVENT, SCREEN_CONNECTION_NAME, function(isBroadcastExists) {
+            if (isBroadcastExists) {
+                document.getElementById('wait-screen').style.display = "none";
+                joinOrOpenBroadcast(connection, false, false, true, SCREEN_CONNECTION_NAME, false);
+                return;
+            }
+            document.getElementById('wait-screen').style.display = "block";
         });
+
+        webCamConnection.getSocket().emit(CHECK_BROADCAST_PRESENCE_EVENT, WEBCAM_CONNECTION_NAME, function(isBroadcastExists) {
+            if (isBroadcastExists) {
+                joinOrOpenBroadcast(webCamConnection, false, true, false, WEBCAM_CONNECTION_NAME, false);
+                return;
+            }
+            return;
+        });
+
+
+        connection.getSocket().on(SCREEN_BROADCAST_STARTED_EVENT, function() {
+            document.getElementById('wait-screen').style.display = "none";
+            console.log('screen broadcast started');
+            joinOrOpenBroadcast(connection, false, false, true, SCREEN_CONNECTION_NAME, false);
+
+            findCoordinators(function() {
+                checkBroadcasts();
+            });
+        });
+        
+        webCamConnection.getSocket().on(WEBCAM_BROADCAST_STARTED_EVENT, function() {
+            document.getElementById('wait-screen').style.display = "none";
+            console.log('webcam broadcast started');
+            joinOrOpenBroadcast(webCamConnection, false, true, false, WEBCAM_CONNECTION_NAME, false);
+        });
+
         </script>
 </body>
 </html>

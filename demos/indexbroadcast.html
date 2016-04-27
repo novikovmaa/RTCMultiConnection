@@ -84,7 +84,7 @@
                 }
             }
 
-            var joinOrOpenBroadcast = function(currentConnection, withAudio, withVideo, withScreen, bcastId, start) {
+            var joinOrOpenBroadcast = function(currentConnection, withAudio, withVideo, withScreen, bcastId, start, callback) {
                 var broadcastId = bcastId;
                 this.disabled = true;
                 if (withAudio && !withVideo && !withScreen) {
@@ -134,6 +134,7 @@
                         typeOfStreams: currentConnection.session
                     });
                 });
+                if (callback) callback();
             }
 
             var preview = null;
@@ -376,8 +377,12 @@
                 document.getElementById('webcam-on').disabled = false;
             }
 
-            joinOrOpenBroadcast(connection, false, false, true, SCREEN_CONNECTION_NAME, true);
-            joinOrOpenBroadcast(webCamConnection, false, true, false, WEBCAM_CONNECTION_NAME, true);
+            joinOrOpenBroadcast(connection, false, false, true, SCREEN_CONNECTION_NAME, true, function(){
+                connection.getSocket().emit(START_SCREEN_BROADCAST_EVENT);
+            });
+            joinOrOpenBroadcast(webCamConnection, false, true, false, WEBCAM_CONNECTION_NAME, true, function(){
+                webCamConnection.getSocket().emit(START_WEBCAM_BROADCAST_EVENT);
+            });
 
         </script>
 

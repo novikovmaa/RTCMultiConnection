@@ -22,3 +22,7 @@ const NEW_COORDINATOR_EVENT = "new-coordinator";
 const NEW_CLIENT_CONNECTED_EVENT = "new-client-connected";
 const MUTE_WEBCAM_EVENT = "mute-webcam";
 const UNMUTE_WEBCAM_EVENT = "unmute-webcam";
+const START_SCREEN_BROADCAST_EVENT = "start-screen-broadcast";
+const START_WEBCAM_BROADCAST_EVENT = "start-webcam-broadcast";
+const SCREEN_BROADCAST_STARTED_EVENT = "screen-broadcast-started";
+const WEBCAM_BROADCAST_STARTED_EVENT = "webcam-broadcast-started";

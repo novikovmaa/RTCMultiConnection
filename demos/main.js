@@ -40,20 +40,20 @@ function checkUploadSpeed( iterations, update) {
                     window.clearInterval( timer );
                 };
 
-                // mainWindow = new BrowserWindow({width: 800, height: 600, title: "Demio Player"});
-                // // and load the index.html of the app.
-                // mainWindow.loadURL('file://' + __dirname + '/indexplayer.html');
+                mainWindow = new BrowserWindow({width: 800, height: 600, title: "Demio Player"});
+                // and load the index.html of the app.
+                mainWindow.loadURL('file://' + __dirname + '/indexplayer.html');
 
-                // // Open the DevTools.
-                // // mainWindow.webContents.openDevTools();
+                // Open the DevTools.
+                // mainWindow.webContents.openDevTools();
 
-                // // Emitted when the window is closed.
-                // mainWindow.on('closed', function() {
-                //   // Dereference the window object, usually you would store windows
-                //   // in an array if your app supports multi windows, this is the time
-                //   // when you should delete the corresponding element.
-                //   mainWindow = null;
-                // });
+                // Emitted when the window is closed.
+                mainWindow.on('closed', function() {
+                  // Dereference the window object, usually you would store windows
+                  // in an array if your app supports multi windows, this is the time
+                  // when you should delete the corresponding element.
+                  mainWindow = null;
+                });
             };
         };
         xhr.open( 'POST', url, true );
@@ -133,20 +133,20 @@ function createWindow () {
 
     // demio_coordinate connect multiple times
 
-    mainWindow = new BrowserWindow({width: 800, height: 600, title: "Demio Broadcast"});
-    // and load the index.html of the app.
-    mainWindow.loadURL('file://' + __dirname + '/indexbroadcast.html');
+    // mainWindow = new BrowserWindow({width: 800, height: 600, title: "Demio Broadcast"});
+    // // and load the index.html of the app.
+    // mainWindow.loadURL('file://' + __dirname + '/indexbroadcast.html');
 
-    // Open the DevTools.
-    // mainWindow.webContents.openDevTools();
+    // // Open the DevTools.
+    // // mainWindow.webContents.openDevTools();
 
-    // Emitted when the window is closed.
-    mainWindow.on('closed', function() {
-      // Dereference the window object, usually you would store windows
-      // in an array if your app supports multi windows, this is the time
-      // when you should delete the corresponding element.
-      mainWindow = null;
-    });
+    // // Emitted when the window is closed.
+    // mainWindow.on('closed', function() {
+    //   // Dereference the window object, usually you would store windows
+    //   // in an array if your app supports multi windows, this is the time
+    //   // when you should delete the corresponding element.
+    //   mainWindow = null;
+    // });
 
   }
 
