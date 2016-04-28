@@ -88,11 +88,7 @@ function isCoordinator() {
   pCoord = pathCoord.join(appPathCoord+'/.coordinator');
   fsCoord.exists(pCoord, function(exists) {
     if (exists) {
-      fsCoord.readFile(pCoord, 'utf8', function (err, data) {
-        if (err) return;
-        global.sharedObj.coordConnectionName = data;
-        global.sharedObj.coordConnectionName = global.sharedObj.coordConnectionName.replace(/(\r\n|\n|\r)/gm,"");
-      });
+      global.sharedObj.coordConnectionName = "coordinator";
     }
   });
 }

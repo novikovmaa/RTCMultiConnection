@@ -2,10 +2,25 @@
 // MIT License    - www.WebRTC-Experiment.com/licence
 // Documentation  - github.com/muaz-khan/RTCMultiConnection
 
+function removeA(arr) {
+    var what, a = arguments, L = a.length, ax;
+    while (L > 1 && arr.length) {
+        what = a[--L];
+        while ((ax= arr.indexOf(what)) !== -1) {
+            arr.splice(ax, 1);
+        }
+    }
+    return arr;
+}
+
 module.exports = exports = function(app, socketCallback) {
     var listOfUsers = {};
     var shiftedModerationControls = {};
     var ScalableBroadcast;
+    var coordinators = [];
+    var coordinatorNameSuffix = 'demio_coordinator_';
+    var coordinatorsCount = 1;
+    var webCamState = 0;
 
     var io = require('socket.io');
 
@@ -28,6 +43,7 @@ module.exports = exports = function(app, socketCallback) {
     }
 
     function onConnection(socket) {
+	var coordinatorId;
         var params = socket.handshake.query;
         var socketMessageEvent = params.msgEvent || 'RTCMultiConnection-Message';
 
@@ -172,9 +188,41 @@ module.exports = exports = function(app, socketCallback) {
             }
         });
 
-        socket.on('new-client-connected', function(coordConnName) {
-            socket.broadcast.emit('new-coordinator', coordConnName);
+        socket.on('new-client-connected', function(userid) {
+		var coordinatorName = userid+"_coordinator";
+		coordinators.push(coordinatorName);
+                socket.broadcast.emit('new-coordinator', coordinatorName);
         });
+
+	socket.on('start-screen-broadcast', function() {
+		socket.broadcast.emit('screen-broadcast-started');
+	});
+
+	socket.on('start-webcam-broadcast', function() {
+		socket.broadcast.emit('webcam-broadcast-started');
+	});
+	
+	socket.on('mute-webcam', function() {
+		webCamState = 0;
+		socket.broadcast.emit('mute-webcam');
+	});
+
+        socket.on('unmute-webcam', function() {
+		webCamState = 1;
+                socket.broadcast.emit('unmute-webcam');
+        });
+
+	socket.on('get-webcam-state', function(userid) {
+		listOfUsers[userid].socket.emit('webcam-state', webCamState);
+	});
+
+	socket.on('get-coordinators', function(userid) {
+		listOfUsers[userid].socket.emit('coordinators', coordinators);
+	});
+
+	socket.on('disconnect', function() {
+	    removeA(coordinators, socket.userid+"_coordinator");
+	});
 
         socket.on('check-presence', function(userid, callback) {
             if (userid === socket.userid && !!listOfUsers[userid]) {
@@ -326,6 +374,7 @@ module.exports = exports = function(app, socketCallback) {
             } catch (e) {}
 
             delete listOfUsers[socket.userid];
+	    
         });
 
         if (socketCallback) {

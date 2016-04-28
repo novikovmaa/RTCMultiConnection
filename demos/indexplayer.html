@@ -68,7 +68,7 @@
         }
 
         // Join broadcast common function
-        var joinOrOpenBroadcast = function(currentConnection, withAudio, withVideo, withScreen, bcastId, start) {
+        var joinOrOpenBroadcast = function(currentConnection, withAudio, withVideo, withScreen, bcastId, start, callback) {
             var broadcastId = bcastId;
             this.disabled = true;
 
@@ -101,15 +101,12 @@
                         currentConnection.userid = broadcastId;
                     }
                     if (isBroadcastExists) {
-                        dialog.showMessageBox({type: 'info', message: 'Broadcast already in use', title: 'Demio', buttons: ['Ok']});
+                        dialog.showMessageBox({type: 'info', message: 'Broadcast already in use! Looks like somebody use your coordinator name', title: 'Demio', buttons: ['Ok']});
                         return;
                     }
                 }
                 if (!start) {
                     if(!isBroadcastExists) {
-                        if (withScreen) {
-                            dialog.showMessageBox({type: 'info', message: 'Broadcast not running', title: 'Demio', buttons: ['Ok']});
-                        }
                         return;
                     }
                 }
@@ -120,6 +117,7 @@
                     userid: currentConnection.userid,
                     typeOfStreams: currentConnection.session
                 });
+                if (callback) callback();
             });
         }
 
@@ -128,15 +126,14 @@
         var onleaveEvent = function(event) {
             var broadcastSrc = broadcastSources[event.userid];
 
-            if (event.extra['stream_name'] == COORDINATOR_CONNECTION_NAME) {
-                broadcastSrc = broadcastSources[event.extra['stream_name']];
+            if (event.userid.indexOf('_coordinator') > -1) {
+                broadcastSrc = event.mediaElement;
             }
 
             if(event.userid !== broadcastSrc.userid) return;
 
             var socket = this.getSocket();
             socket.emit(CAN_NOT_RELAY_BROADCAST_EVENT);
-
             this.isUpperUserLeft = true;
 
         };
@@ -146,26 +143,27 @@
                 return;
             }
 
-            if(event.mediaElement) {
-                event.mediaElement.pause();
-                delete event.mediaElement;
-            }
-
             this.isUpperUserLeft = false;
 
             var broadcastSrc = broadcastSources[event.userid];
 
-            if (event.extra['stream_name'] == COORDINATOR_CONNECTION_NAME) {
-                broadcastSrc = broadcastSources[event.extra['stream_name']];
+            if (event.userid.indexOf('_coordinator') > -1) {
+                document.body.appendChild(event.mediaElement);
+                broadcastSrc = event.mediaElement;
+            }
+            else {
+                if(event.mediaElement) {
+                    event.mediaElement.pause();
+                    delete event.mediaElement;
+                }
+                broadcastSrc.src = URL.createObjectURL(event.stream);
             }
 
-            broadcastSrc.src = URL.createObjectURL(event.stream);
             broadcastSrc.play();
-
             broadcastSrc.userid = event.userid;
 
             if(event.type === 'local') {
-                broadcastSrc.muted = true;
+                //broadcastSrc.muted = true;
             }
 
             if (this.isInitiator == false && event.type === 'remote') {
@@ -247,7 +245,7 @@
                 socket.on(BROADCAST_STOPPED_EVENT, function(broadcastId) {
                     console.error(BROADCAST_STOPPED_EVENT, broadcastId);
                     if (isScreen) {
-                        dialog.showMessageBox({type: 'info', message: 'This broadcast has been stopped', title: 'Demio', buttons: ['Ok']});
+                        document.getElementById('wait-screen').style.display = "block";
                     }
                 });
 
@@ -279,7 +277,9 @@
             coord = connectToSocket(coord, false);
             coord.onstream = onstreamEvent;
             // joinOrOpenBroadcast function(currentConnection, withAudio, withVideo, withScreen, bcastId, isCoordinator, start?)
-            joinOrOpenBroadcast(coord, true, false, false, openedCoordinatorsNames[i], false);
+            setTimeout(function() {
+                joinOrOpenBroadcast(webCamConnection, true, false, false, openedCoordinatorsNames[i], false);
+            }, 1000);
           });
         };
 
@@ -345,17 +345,6 @@
             return connection;
         }
 
-        if (coordConnName !== '') {
-            coordinatorConnection = setupConnection();
-            coordinatorConnection = connectToSocket(coordinatorConnection, false);
-
-            coordinatorConnection.onstream = onstreamEvent;
-            coordinatorConnection.onleave = onleaveEvent;
-            coordinatorConnection.extra['stream_name'] = COORDINATOR_CONNECTION_NAME;
-            // joinOrOpenBroadcast function(currentConnection, withAudio, withVideo, withScreen, bcastId, start?)
-            joinOrOpenBroadcast(coordinatorConnection, true, false, false, coordConnName, true);
-        }
-
         // Setup main connection
         connection = setupConnection();
         var mainWindow = remote.getCurrentWindow()
@@ -367,15 +356,29 @@
                 newCoordinator = setupConnection();
                 newCoordinator = connectToSocket(newCoordinator, false);
                 // joinOrOpenBroadcast function(currentConnection, withAudio, withVideo, withScreen, bcastId, isCoordinator, start?)
-                joinOrOpenBroadcast(newCoordinator, true, false, false, coordinatorName, false);
+                setTimeout(function() {
+                    joinOrOpenBroadcast(webCamConnection, true, false, false, coordinatorName, false);
+                }, 1000);
                 coordinators.push(newCoordinator);
         });
         if (coordConnName !== '') {
-            connection.getSocket().emit(NEW_CLIENT_CONNECTED_EVENT, coordConnName);
+            connection.getSocket().emit(NEW_CLIENT_CONNECTED_EVENT, connection.userid);
         }
         connection.onstream = onstreamEvent;
         connection.onleave = onleaveEvent;
         connection.extra['stream_name'] = SCREEN_CONNECTION_NAME;
+
+        if (coordConnName !== '') {
+            coordinatorConnection = setupConnection();
+            coordinatorConnection = connectToSocket(coordinatorConnection, false);
+
+            coordinatorConnection.onstream = onstreamEvent;
+            coordinatorConnection.onleave = onleaveEvent;
+            coordinatorConnection.extra['stream_name'] = '_coordinator';
+            // joinOrOpenBroadcast function(currentConnection, withAudio, withVideo, withScreen, bcastId, start?)
+            joinOrOpenBroadcast(coordinatorConnection, true, false, false, connection.userid+"_coordinator", true);
+        }
+
         // Setup webcam connection
         webCamConnection = setupConnection();
         webCamConnection = connectToSocket(webCamConnection, false);
@@ -394,7 +397,9 @@
         connection.getSocket().emit(CHECK_BROADCAST_PRESENCE_EVENT, SCREEN_CONNECTION_NAME, function(isBroadcastExists) {
             if (isBroadcastExists) {
                 document.getElementById('wait-screen').style.display = "none";
-                joinOrOpenBroadcast(connection, false, false, true, SCREEN_CONNECTION_NAME, false);
+                setTimeout(function() {
+                    joinOrOpenBroadcast(webCamConnection, false, false, true, SCREEN_CONNECTION_NAME, false);
+                }, 1000);
                 return;
             }
             document.getElementById('wait-screen').style.display = "block";
@@ -402,28 +407,60 @@
 
         webCamConnection.getSocket().emit(CHECK_BROADCAST_PRESENCE_EVENT, WEBCAM_CONNECTION_NAME, function(isBroadcastExists) {
             if (isBroadcastExists) {
-                joinOrOpenBroadcast(webCamConnection, false, true, false, WEBCAM_CONNECTION_NAME, false);
-                return;
+                setTimeout(function() {
+                    joinOrOpenBroadcast(webCamConnection, false, true, false, WEBCAM_CONNECTION_NAME, false);
+                }, 1000);
             }
             return;
         });
 
+        connection.getSocket().on('coordinators', function(coordinators_arr) {
+            if (coordinators_arr.length > 0) {
+                coordinators_arr.forEach(function(c) {
+                    if ((connection.userid+"_coordinator") !== c) {
+                        coordConnection = setupConnection();
+                        coordConnection = connectToSocket(coordConnection, false);
+                        coordConnection.onstream = onstreamEvent;
+                        coordConnection.onleave = onleaveEvent;
+                        setTimeout(function() {
+                            joinOrOpenBroadcast(coordConnection, true, false, false, c, false);
+                        }, 100);
+                        coordinators.push(coordConnection);
+                    }
+                });
+            }
+        });
 
         connection.getSocket().on(SCREEN_BROADCAST_STARTED_EVENT, function() {
             document.getElementById('wait-screen').style.display = "none";
             console.log('screen broadcast started');
-            joinOrOpenBroadcast(connection, false, false, true, SCREEN_CONNECTION_NAME, false);
-
-            findCoordinators(function() {
-                checkBroadcasts();
-            });
+            setTimeout(function() {
+                joinOrOpenBroadcast(connection, false, false, true, SCREEN_CONNECTION_NAME, false);
+            }, 1000);
         });
-        
+
         webCamConnection.getSocket().on(WEBCAM_BROADCAST_STARTED_EVENT, function() {
             document.getElementById('wait-screen').style.display = "none";
             console.log('webcam broadcast started');
-            joinOrOpenBroadcast(webCamConnection, false, true, false, WEBCAM_CONNECTION_NAME, false);
+            setTimeout(function() {
+                joinOrOpenBroadcast(webCamConnection, false, true, false, WEBCAM_CONNECTION_NAME, false)
+            }, 1000);
+            webcamView.muted = true;
         });
+
+
+        connection.getSocket().emit('get-coordinators', connection.userid);
+        connection.getSocket().emit('get-webcam-state', connection.userid);
+
+        connection.getSocket().on('webcam-state', function(webCamState) {
+            if (webCamState == 1) {
+                document.getElementById('webcam-view').style.display = 'block';
+            }
+            if (webCamState == 0) {
+                document.getElementById('webcam-view').style.display = 'none';
+            }
+        });
+
 
         </script>
 </body>
